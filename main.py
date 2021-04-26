@@ -53,7 +53,7 @@ predictor = dlib.shape_predictor(args["shape_predictor"])
 
 # start the video stream thread
 print("[INFO] starting video stream thread...")
-vs = VideoStream(src=-1).start()
+vs = VideoStream(src=0).start()
 
 ### Record video ###
 record = args["record"]
