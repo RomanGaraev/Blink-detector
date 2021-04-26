@@ -1,10 +1,8 @@
 # import the necessary packages
 from scipy.spatial.distance import euclidean
+from imutils import face_utils, resize
 from imutils.video import VideoStream
-from imutils import face_utils
 import argparse
-import imutils
-import time
 import dlib
 import cv2
 
@@ -22,18 +20,22 @@ def eye_aspect_ratio(eye):
     # return the eye aspect ratio
     return ear
 
+
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-p", "--shape-predictor", required=True,
-    help="path to facial landmark predictor")
+                help="path to facial landmark predictor")
+ap.add_argument("-v", "--record", required=False,
+                help="print True, if you would like to record the screen to output.avi")
 args = vars(ap.parse_args())
 
 # define two constants, one for the eye aspect ratio to indicate
 # blink and then a second constant for the number of consecutive
 # frames the eye must be below the threshold
-EYE_AR_THRESH = 0.19
-EYE_AR_CONSEC_FRAMES = 3
-EYE_AR_CLOSED_FRAMES = 20
+EYE_AR_THRESH = 0.20
+EYE_AR_CONSEC_FRAMES = 1
+### More than 2 sec (fps*2) of closed eyes ###
+EYE_AR_CLOSED_FRAMES = 64
 # initialize the frame counters and the total number of blinks
 COUNTER = 0
 TOTAL = 0
@@ -51,9 +53,13 @@ predictor = dlib.shape_predictor(args["shape_predictor"])
 
 # start the video stream thread
 print("[INFO] starting video stream thread...")
-vs = VideoStream(src=0).start()
-fileStream = False
-time.sleep(1.0)
+vs = VideoStream(src=-1).start()
+
+### Record video ###
+record = args["record"]
+if record == "True":
+    fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+    out = cv2.VideoWriter('output.avi', fourcc, 32.0, (480, 360))
 
 # loop over frames from the video stream
 while True:
@@ -61,7 +67,7 @@ while True:
     # it, and convert it to grayscale
     # channels)
     frame = vs.read()
-    frame = imutils.resize(frame, width=480, height=480)
+    frame = resize(frame, width=480, height=480)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     # detect faces in the grayscale frame
     rects = detector(gray, 0)
@@ -91,6 +97,7 @@ while True:
         # threshold, and if so, increment the blink frame counter
         if ear < EYE_AR_THRESH:
             COUNTER += 1
+            ### Count amount of frames with closed eyes###
             if COUNTER >= EYE_AR_CLOSED_FRAMES:
                 cv2.putText(frame, "ALERT!", (100, 200),
                             cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 0, 255), 2)
@@ -99,6 +106,7 @@ while True:
         else:
             # if the eyes were closed for a sufficient number of
             # then increment the total number of blinks
+            ### Don't count blink, if eyes were closed too long ###
             if EYE_AR_CONSEC_FRAMES <= COUNTER < EYE_AR_CLOSED_FRAMES:
                 TOTAL += 1
             # reset the eye frame counter
@@ -113,11 +121,15 @@ while True:
     # show the frame
     cv2.imshow("Frame", frame)
     key = cv2.waitKey(1) & 0xFF
-
+    if record == "True":
+        out.write(frame)
     # if the `q` key was pressed, break from the loop
     if key == ord("q"):
         print("Out...")
         break
+
+if record == "True":
+    out.release()
 # do a bit of cleanup
 cv2.destroyAllWindows()
 vs.stop()
